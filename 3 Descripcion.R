@@ -58,7 +58,7 @@ ggplot(train_hogares_2, aes(x = factor(Pobre, labels = c("No Pobres", "Pobres"))
   geom_bar(position = "fill") +  # Proporciones en vez de conteo absoluto
   scale_fill_manual(values = c("gray", "red")) +  # Mejores colores
   labs(
-    title = "Distribución de la pobreza por sexo del jefe de hogar",
+    title = "Distribución de la Pobreza por Sexo del Jefe de hogar",
     x = "Condición de pobreza",
     y = "Proporción",
     fill = "Jefe de hogar"
@@ -75,7 +75,7 @@ ggplot(train_hogares, aes(x = Hijos, fill = factor(Pobre))) +
   scale_fill_manual(values = c("gray", "red")) +  # Colores más diferenciables
   scale_x_continuous(breaks = seq(0, 10, by = 1), limits = c(0, 10)) +  # Limita y ordena ejes
   labs(
-    title = "Distribución de la pobreza por número de hijos",
+    title = "Distribución de la Pobreza por Número de Hijos",
     x = "Número de Hijos",
     y = "Proporción",
     fill = "Pobre"
@@ -121,7 +121,7 @@ ggplot(pobreza_por_dpto, aes(x = Nombre_Depto, y = Prop, fill = factor(Pobre))) 
             position = position_stack(vjust = 0.5), 
             size = 3, color = "black") +  
   scale_fill_manual(values = c("0" = "gray", "1" = "red")) +  
-  labs(title = "Distribución porcentual de la pobreza por departamento",
+  labs(title = "Distribución Porcentual de la Pobreza por Departamento",
        x = "Departamento", 
        y = "Porcentaje de hogares", 
        fill = "Pobre") +
