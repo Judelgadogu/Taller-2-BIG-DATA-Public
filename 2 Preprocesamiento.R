@@ -106,11 +106,26 @@ tasa_desempleo <- train_personas[, .(tasa_desempleo = sum(Des, na.rm = TRUE) / (
 # 6. UNIÓN CON train_hogares
 # --------------------------
 
-train_hogares <- Reduce(function(x, y) merge(x, y, by = "id", all.x = TRUE),
+train_hogares_full <- Reduce(function(x, y) merge(x, y, by = "id", all.x = TRUE),
                         list(train_hogares, sum_Hogar, JH, JH_Mujer,JH_Edad, JH_Edad2, JH_RSS_S,
                              JH_NEduc, JH_CotizaPension, JH_Pensionado, JH_Oc, JH_Des, JH_Ina, Hijos, Educ_prom, 
                              Adultos, Trabajadores, Subsidios, CotizaPension, Pensionado, 
                              Ingresos_AlquilerPensiones, OtrosIngresos, AyudasEco, TGP, P_o, tasa_desempleo))
+
+
+train_hogares_full <- train_hogares_full %>%
+  select(-P5100, -P5130, -P5140, -tasa_desempleo)
+
+train_hogares_full$TGP[is.na(train_hogares_full$TGP)] <- 0
+train_hogares_full$P_o[is.na(train_hogares_full$P_o)] <- 0
+
+
+na_counts <- colSums(is.na(train_hogares_full))
+
+na_counts[na_counts > 0]
+
+
+
 
 # --------------------------
 # 7. PROCESAMIENTO DE test_personas
@@ -174,12 +189,32 @@ test_tasa_desempleo <- test_personas[, .(tasa_desempleo = sum(Des, na.rm = TRUE)
 # 8. UNIÓN CON test_hogares
 # --------------------------
 
-test_hogares <- Reduce(function(x, y) merge(x, y, by = "id", all.x = TRUE),
+test_hogares_full <- Reduce(function(x, y) merge(x, y, by = "id", all.x = TRUE),
                         list(test_hogares, test_sum_Hogar, test_JH, test_JH_Mujer,test_JH_Edad, test_JH_Edad2, test_JH_RSS_S,
                              test_JH_NEduc, test_JH_CotizaPension, test_JH_Pensionado, test_JH_Oc, test_JH_Des, test_JH_Ina,
                              test_Hijos, test_Educ_prom,test_Adultos, test_Trabajadores, test_Subsidios, test_CotizaPension,
                              test_Pensionado,test_Ingresos_AlquilerPensiones, test_OtrosIngresos, test_AyudasEco, test_TGP,
                              test_P_o, test_tasa_desempleo))
+
+
+
+test_hogares_full <- test_hogares_full %>%
+  select(-P5100, -P5130, -P5140, -tasa_desempleo)
+
+
+test_hogares_full$TGP[is.na(test_hogares_full$TGP)] <- 0
+test_hogares_full$P_o[is.na(test_hogares_full$P_o)] <- 0
+
+
+na_counts_test <- colSums(is.na(test_hogares_full))
+
+# Mostrar solo las columnas con valores NA
+na_counts_test[na_counts_test > 0]
+
+
+
+
+
 
 # --------------------------
 # 8. GUARDAR ARCHIVOS PROCESADOS
