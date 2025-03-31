@@ -220,8 +220,8 @@ na_counts_test[na_counts_test > 0]
 # 8. GUARDAR ARCHIVOS PROCESADOS
 # --------------------------
 
-saveRDS(train_hogares, file = "stores/train_hogares_full.rds")
-saveRDS(test_hogares, file = "stores/test_hogares_full.rds")
+saveRDS(train_hogares_full, file = "stores/train_hogares_full.rds")
+saveRDS(test_hogares_full, file = "stores/test_hogares_full.rds")
 
 # --------------------------
 # 9. LIMPIEZA FINAL
