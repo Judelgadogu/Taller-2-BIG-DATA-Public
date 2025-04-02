@@ -91,8 +91,15 @@ JH_Media <- train_personas[P6050 == 1, .(JH_Media = as.numeric(P6210 == 5)), by 
 JH_Trabaja <- train_personas[P6050 == 1, .(JH_Trabaja = as.numeric(P6240 == 1)), by = id]
 JH_HorasExt <- train_personas[P6050 == 1, .(JH_HorasExt = as.numeric(ifelse(is.na(P6800), 0, P6800 >= 40))), by = id]
 
+JH_Independiente <- train_personas[P6050 == 1, .(JH_Independiente = as.numeric(P6870 == 1)), by = id]
 
+JH_Microempresa <- train_personas[P6050 == 1, .(JH_Microempresa = as.numeric(P6870 %in% c(2, 3, 4))), by = id]
 
+JH_Pequena <- train_personas[P6050 == 1, .(JH_Pequena = as.numeric(P6870 %in% c(5, 6, 7))), by = id]
+
+JH_Mediana_Grande <- train_personas[P6050 == 1, .(JH_Mediana_Grande = as.numeric(P6870 %in% c(8, 9))), by = id]
+
+JH_NoTrabaja <- train_personas[P6050 == 1, .(JH_NoTrabaja = as.numeric(is.na(P6870))), by = id]
 
 
 # Variables adicionales
@@ -119,7 +126,7 @@ tasa_desempleo <- train_personas[, .(tasa_desempleo = sum(Des, na.rm = TRUE) / (
 train_hogares_full <- Reduce(function(x, y) merge(x, y, by = "id", all.x = TRUE),
                         list(train_hogares, sum_Hogar, JH, JH_Mujer,JH_Edad, JH_Edad2, JH_RSS_S,JH_RSS_Subsidiado,
                              JH_NEduc, JH_CotizaPension, JH_Pensionado, JH_Oc, JH_Des, JH_Ina, JH_NoSeguro,JH_BasicaSecundaria, JH_Media, Hijos, Educ_prom, 
-                             Adultos, Trabajadores, Subsidios, CotizaPension, Pensionado, JH_Trabaja,JH_HorasExt,
+                             JH_Independiente, JH_Microempresa,JH_Pequena , JH_Mediana_Grande, Adultos, Trabajadores, Subsidios, CotizaPension, Pensionado, JH_Trabaja,JH_HorasExt,
                              Ingresos_AlquilerPensiones, OtrosIngresos, AyudasEco, TGP, P_o, tasa_desempleo))
 
 
@@ -132,7 +139,7 @@ train_hogares_full$JH_NoSeguro[is.na(train_hogares_full$JH_NoSeguro)] <- 0
 train_hogares_full$JH_RSS_Subsidiado[is.na(train_hogares_full$JH_RSS_Subsidiado)] <- 0
 train_hogares_full$JH_Trabaja[is.na(train_hogares_full$JH_Trabaja)] <- 0
 train_hogares_full$JH_HorasExt[is.na(train_hogares_full$JH_HorasExt)] <- 0
-
+train_hogares_full$JH_Independiente[is.na(train_hogares_full$JH_Independiente)] <- 0
 
 
 na_counts <- colSums(is.na(train_hogares_full))
@@ -189,7 +196,12 @@ JH_RSS_Subsidiado <- test_personas[P6050 == 1, .(JH_RSS_Subsidiado = as.numeric(
 JH_BasicaSecundaria <- test_personas[P6050 == 1, .(JH_BasicaSecundaria = as.numeric(P6210 %in% c(1, 2, 3, 4, 9))), by = id]
 JH_Media <- test_personas[P6050 == 1, .(JH_Media = as.numeric(P6210 == 5)), by = id]
 JH_Trabaja <- test_personas[P6050 == 1, .(JH_Trabaja = as.numeric(P6240 == 1)), by = id]
-
+JH_HorasExt <- test_personas[P6050 == 1, .(JH_HorasExt = as.numeric(ifelse(is.na(P6800), 0, P6800 >= 40))), by = id]
+JH_Independiente <- test_personas[P6050 == 1, .(JH_Independiente = as.numeric(P6870 == 1)), by = id]
+JH_Microempresa <- test_personas[P6050 == 1, .(JH_Microempresa = as.numeric(P6870 %in% c(2, 3, 4))), by = id]
+JH_Pequena <- test_personas[P6050 == 1, .(JH_Pequena = as.numeric(P6870 %in% c(5, 6, 7))), by = id]
+JH_Mediana_Grande <- test_personas[P6050 == 1, .(JH_Mediana_Grande = as.numeric(P6870 %in% c(8, 9))), by = id]
+JH_NoTrabaja <- test_personas[P6050 == 1, .(JH_NoTrabaja = as.numeric(is.na(P6870))), by = id]
 
 
 # Variables adicionales (sin filtrar por jefe de hogar)
@@ -208,8 +220,6 @@ AyudasEco <- test_personas[, .(AyudasEco = as.integer(any(P7510s3, na.rm = TRUE)
 TGP <- test_personas[, .(TGP = sum(Ina, na.rm = TRUE) / sum(Pet, na.rm = TRUE)), by = id]
 P_o <- test_personas[, .(P_o = sum(Oc, na.rm = TRUE) / sum(Pet, na.rm = TRUE)), by = id]
 tasa_desempleo <- test_personas[, .(tasa_desempleo = sum(Des, na.rm = TRUE) / (sum(Oc, na.rm = TRUE) + sum(Des, na.rm = TRUE))), by = id]
-JH_HorasExt <- test_personas[P6050 == 1, .(JH_HorasExt = as.numeric(ifelse(is.na(P6800), 0, P6800 >= 40))), by = id]
-
 
 
 # --------------------------
@@ -219,7 +229,7 @@ JH_HorasExt <- test_personas[P6050 == 1, .(JH_HorasExt = as.numeric(ifelse(is.na
 test_hogares_full <- Reduce(function(x, y) merge(x, y, by = "id", all.x = TRUE),
                         list(test_hogares, sum_Hogar, JH, JH_Mujer,JH_Edad, JH_Edad2, JH_RSS_S,JH_RSS_Subsidiado,
                              JH_NEduc, CotizaPension, Pensionado, JH_Oc, JH_Des, JH_Ina, JH_NoSeguro,JH_BasicaSecundaria, JH_Media,JH_Trabaja,
-                             Hijos, Educ_prom,Adultos, Trabajadores, Subsidios, CotizaPension,JH_HorasExt,
+                             JH_Independiente, JH_Microempresa,JH_Pequena , JH_Mediana_Grande,Hijos, Educ_prom,Adultos, Trabajadores, Subsidios, CotizaPension,JH_HorasExt,
                              Pensionado,Ingresos_AlquilerPensiones, OtrosIngresos, AyudasEco, TGP,
                              P_o, tasa_desempleo))
 
@@ -235,16 +245,12 @@ test_hogares_full$JH_NoSeguro[is.na(test_hogares_full$JH_NoSeguro)] <- 0
 test_hogares_full$JH_RSS_Subsidiado[is.na(test_hogares_full$JH_RSS_Subsidiado)] <- 0
 test_hogares_full$JH_Trabaja[is.na(test_hogares_full$JH_Trabaja)] <- 0
 test_hogares_full$JH_HorasExt[is.na(test_hogares_full$JH_HorasExt)] <- 0
-
+test_hogares_full$JH_Independiente[is.na(test_hogares_full$JH_Independiente)] <- 0
 
 na_counts_test <- colSums(is.na(test_hogares_full))
 
 # Mostrar solo las columnas con valores NA
 na_counts_test[na_counts_test > 0]
-
-
-
-
 
 
 # --------------------------
