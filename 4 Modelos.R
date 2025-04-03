@@ -77,19 +77,18 @@ fitControl <- trainControl(
 
 # Ajustar el modelo con regresión logística, usando los pesos de las clases
 linear_reg_caret_weighted <- train(
-  Pobre ~ P5000 + P5090 + Npersug + Lp +  
-    trabajando + JH_Mujer + JH_Edad +  
-    JH_RSS_S + JH_NEduc + 
-    JH_Oc + Hijos + Educ_prom + 
-    Trabajadores + Subsidios + CotizaPension + Pensionado + 
-    TGP + P_o, 
+  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro+ JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
+    JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena+ JH_Mediana_Grande + Hijos
+    , 
   data = train_hogares,  # Datos de entrenamiento
   method = "glm",  # Método de regresión logística
   family = binomial,  # Familia binomial para clasificación
   trControl = fitControl,  # Control de entrenamiento
-  preProcess = c("center", "scale"),  # Preprocesamiento de datos
-  weights = class_weights  # Usar pesos en el modelo
-)
+  preProcess = c("center", "scale")# Preprocesamiento de datos
+  )
+
+#weights = class_weights  # Usar pesos en el modelo
+
 
 # Mostrar resumen del modelo ajustado
 summary(linear_reg_caret_weighted)
@@ -147,22 +146,20 @@ y_hat_reg_test  # Mostrar predicciones
 train_hogares$weights <- ifelse(train_hogares$Pobre == 1, 0.79, 0.21)
 
 ridge <- train(
-  Pobre ~ P5000 + P5090 + Npersug + Lp +  
-    trabajando + JH_Mujer + JH_Edad +  
-    JH_RSS_S + JH_NEduc + 
-    JH_Oc + Hijos + Educ_prom + 
-    Trabajadores + Subsidios + CotizaPension + Pensionado + 
-    TGP + P_o, 
+  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
+    JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena + JH_Mediana_Grande + Hijos,
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
   tuneGrid = expand.grid(
     alpha = 0, # Ridge (alpha=0)
-    lambda = seq(0, 10, by = 0.01)
+    lambda = 10^seq(-4, 4, length = 100) 
   ),
-  preProcess = c("center", "scale"),
-  weights = train_hogares$weights  # Usar pesos en el modelo
+  preProcess = c("center", "scale")
+
 )
+
+#weights = train_hogares$weights  # Usar pesos en el modelo
 
 # Graficar el RMSE en función de lambda
 plot(ridge$results$lambda,
@@ -180,20 +177,19 @@ coef_ridge
 
 # Ajustar el modelo Ridge final con el mejor lambda
 modelo_ridge <- train(
-  Pobre ~ P5000 + P5090 + Npersug + Lp +  
-    trabajando + JH_Mujer + JH_Edad +  
-    JH_RSS_S + JH_NEduc + 
-    JH_Oc + Hijos + Educ_prom + 
-    Trabajadores + Subsidios + CotizaPension + Pensionado + 
-    TGP + P_o, 
+  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
+    JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena + JH_Mediana_Grande + Hijos,
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
   tuneGrid = expand.grid(alpha = 0, # Ridge
                          lambda = ridge$bestTune$lambda), # Lambda óptimo
-  preProcess = c("center", "scale"),
-  weights = train_hogares$weights  # Usar pesos en el modelo
+  preProcess = c("center", "scale")
+
 )
+
+#weights = train_hogares$weights  # Usar pesos en el modelo
+
 
 # Predicciones sobre el conjunto de prueba
 y_hat_ridge <- predict(modelo_ridge, newdata = train_hogares)
@@ -237,12 +233,8 @@ y_hat_ridge_test
 #------ Modelo Lasso --------------------
 # Ajustar el modelo Lasso con búsqueda más fina de lambda
 lasso <- train(
-  Pobre ~ P5000 + P5090 + Npersug + Lp +  
-    trabajando + JH_Mujer + JH_Edad +  
-    JH_RSS_S + JH_NEduc + 
-    JH_Oc + Hijos + Educ_prom + 
-    Trabajadores + Subsidios + CotizaPension + Pensionado + 
-    TGP + P_o, 
+  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
+    JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena + JH_Mediana_Grande + Hijos, 
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
@@ -250,9 +242,10 @@ lasso <- train(
     alpha = 1, # Lasso (alpha=1)
     lambda = seq(0, 10, by = 0.01) # Rango más realista
   ),
-  preProcess = c("center", "scale"),
-  weights = train_hogares$weights  # Usar la misma variable de pesos que en Ridge
+  preProcess = c("center", "scale")
 )
+
+#,weights = train_hogares$weights  # Usar la misma variable de pesos que en Ridge
 
 # Graficar RMSE en función de log(lambda)
 plot(log(lasso$results$lambda),
@@ -270,12 +263,8 @@ print(coef_lasso)
 
 # Ajustar el modelo Lasso final con el mejor lambda
 modelo_lasso <- train(
-  Pobre ~ P5000 + P5090 + Npersug + Lp +  
-    trabajando + JH_Mujer + JH_Edad +  
-    JH_RSS_S + JH_NEduc + 
-    JH_Oc + Hijos + Educ_prom + 
-    Trabajadores + Subsidios + CotizaPension + Pensionado + 
-    TGP + P_o, 
+  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
+    JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena + JH_Mediana_Grande + Hijos, 
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
@@ -283,9 +272,10 @@ modelo_lasso <- train(
     alpha = 1,  # Rango de alpha más reducido
     lambda = lasso$bestTune$lambda # Misma escala que en Ridge y Lasso
   ),
-  preProcess = c("center", "scale"),
-  weights = train_hogares$weights # Ajustando para que coincida con Ridge y Lasso
+  preProcess = c("center", "scale")
 )
+
+#,weights = train_hogares$weights # 
 
 # Predicciones sobre el conjunto de entrenamiento
 y_hat_lasso <- predict(modelo_lasso, newdata = train_hogares)
@@ -323,22 +313,21 @@ y_hat_lasso_test
 #------ Modelo Elastic Net -----------------
 
 EN <- train(
-  Pobre ~ P5000 + P5090 + Npersug + Lp +  
-    trabajando + JH_Mujer + JH_Edad +  
-    JH_RSS_S + JH_NEduc + 
-    JH_Oc + Hijos + Educ_prom + 
-    Trabajadores + Subsidios + CotizaPension + Pensionado + 
-    TGP + P_o, 
+  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + 
+    JH_BasicaSecundaria + JH_Media + JH_Trabaja + JH_HorasExt + 
+    JH_Independiente + JH_Microempresa + JH_Pequena + 
+    JH_Mediana_Grande + Hijos, 
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
   tuneGrid = expand.grid(
-    alpha = seq(0.001, 0.01, by = 0.001),  # Alpha en rango más reducido
-    lambda = seq(0, 10, by = 0.1) # Lambda en rango más bajo
+    alpha = seq(0, 1, by = 0.1),  # Exploración más amplia de alpha
+    lambda = seq(0, 10, by = 0.1)    # Exploración más detallada de lambda
   ),
-  preProcess = c("center", "scale"),
-  weights = train_hogares$weights
+  preProcess = c("center", "scale")
 )
+
+#,weights = train_hogares$weights
 
 # Graficar el RMSE en función de lambda
 plot(EN$results$lambda,
@@ -356,12 +345,10 @@ coef_EN
 
 # Ajustar el modelo Elastic Net final con los mejores parámetros encontrados
 modelo_EN <- train(
-  Pobre ~ P5000 + P5090 + Npersug + Lp +  
-    trabajando + JH_Mujer + JH_Edad +  
-    JH_RSS_S + JH_NEduc + 
-    JH_Oc + Hijos + Educ_prom + 
-    Trabajadores + Subsidios + CotizaPension + Pensionado + 
-    TGP + P_o, 
+  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + 
+    JH_BasicaSecundaria + JH_Media + JH_Trabaja + JH_HorasExt + 
+    JH_Independiente + JH_Microempresa + JH_Pequena + 
+    JH_Mediana_Grande + Hijos, 
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
@@ -369,9 +356,11 @@ modelo_EN <- train(
     alpha = EN$bestTune$alpha, # Mejor alpha encontrado
     lambda = EN$bestTune$lambda  # Mejor lambda encontrado
   ),
-  preProcess = c("center", "scale"),
-  weights = class_weights
+  preProcess = c("center", "scale")
 )
+
+
+#,weights = class_weights
 
 # Predicciones sobre el conjunto de entrenamiento
 y_hat_EN <- predict(modelo_EN, newdata = train_hogares)
@@ -454,8 +443,3 @@ write.csv(predictSample, ruta_salida, row.names = FALSE)
 
 # Confirmar que el archivo se ha guardado
 file.exists(ruta_salida)
-
-
-# Predicciones sobre el conjunto de prueba
-y_hat_EN <- predict(modelo_EN, newdata = test_hogares)
-stopCluster(cl)  # Al final de la ejecución
