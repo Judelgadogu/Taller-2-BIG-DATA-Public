@@ -1,0 +1,530 @@
+#Limpieza Consolidado ----------------------------------------------------------
+
+## Preparación -----------------------------------------------------------------
+
+rm(list = ls())
+
+if(!require(pacman)) install.packages("pacman") ; require(pacman)
+
+
+p_load(tidyverse,
+       here,
+       skimr,
+       VIM,
+       glmnet,    # Modelos de regresión regularizados (EN, Lasso y Ridge).
+       caret,
+       MLmetrics, # Calcular metricas
+       MLeval,    # Evaluar modelos de clasificación
+       Metrics, 
+       ggplot2, 
+       rio
+)
+
+# Crear el directorio 
+wd <- here()
+wd_stores <- paste0(wd, "/stores/")
+setwd(wd_stores)
+rm(wd_stores)
+
+## Cargar datos ----------------------------------------------------------------
+
+sample_sub <- read.csv("sample_submission.csv") %>% 
+  as_tibble()
+
+test_hogares <- read.csv("test_hogares.csv") %>% 
+  as_tibble()
+
+train_hogares <- read.csv("train_hogares.csv") %>% 
+  as_tibble()
+
+test_personas <- read.csv("test_personas.csv") %>% 
+  as_tibble()
+
+train_personas <- readRDS("train_personas.rds") %>% 
+  as_tibble() #Por el peso del archivo se convirtió a rds
+
+## Limpeza hogares -------------------------------------------------------------
+
+# Dejar las mismas variables que test
+train_hogares <- train_hogares %>%
+  select(-Ingtotug, -Ingtotugarr, 
+         -Ingpcug, -Indigente, 
+         -Npobres, -Nindigentes)
+
+#Crear variable de test
+
+train_hogares <- train_hogares %>% mutate(test=0)
+test_hogares <- test_hogares %>% mutate(test=1)
+test_hogares <- test_hogares %>% mutate(Pobre=NA)
+
+#Pegar ambas bases de hogares
+
+hogares_total <- rbind(test_hogares, train_hogares)
+
+# Observar la cantidad de missing values de cada variable
+missing_values<-colSums(is.na(hogares_total))
+missing_tab<-data.frame(
+  Miss_val=missing_values
+)
+print(missing_tab)
+
+# Lista de variables
+variables <- c("P5100", "P5130", "P5140")
+
+# Transformar los datos a formato largo
+hogares_long <- hogares_total %>%
+  select(all_of(variables)) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Valor")
+
+# Crear el boxplot - identificamos muchos valores extremos en estas variables
+p <- ggplot(hogares_long, aes(x = Variable, y = Valor, fill = Variable)) +
+  geom_boxplot(outlier.colour = "red", outlier.shape = 16, outlier.size = 2, alpha = 0.5) +
+  labs(title = "Comparación de distribución de variables", x = "Variable", y = "Valor") +
+  theme_minimal()
+
+p
+
+# Calcular el percentil 99.5 para cada variable 
+#Truncamos las variables tan arriba para evitar eliminar valores plausibles
+options(scipen = 999)
+
+percentiles_99  <- hogares_total %>%
+  summarise(across(all_of(variables), ~ quantile(.x, 0.995, na.rm =  TRUE)))
+
+hogares_total <- hogares_total %>%
+  mutate(across(all_of(variables), ~ pmin(.x, percentiles_99[[cur_column()]])))
+
+#La pregunta p5100 solo se pregunta si la respuesta a la pregunta p5090 es que la vivienda es propia y la está pagando
+#Si no responde la pregunta quere decir que no esta pagando un credito de vivienda
+#Se reemplaza #N/A por 0
+hogares_total$P5100 <- ifelse(hogares_total$P5090 != 2 & is.na(hogares_total$P5100), 
+                              0, hogares_total$P5100)
+
+#P5130 solo se pregunta si la vivienda está en usufructo, de lo contrario 0
+hogares_total$P5130 <- ifelse(hogares_total$P5090 != 4 & is.na(hogares_total$P5130), 
+                              0, hogares_total$P5130)
+
+
+
+#P5140 solo se pregunta si la vivienda está en arriendo, de lo contrario 0
+hogares_total$P5140 <- ifelse(hogares_total$P5090 != 3 & is.na(hogares_total$P5140), 
+                              0, hogares_total$P5140)
+
+#Con esto ya queda completamente imputada la base de hogares
+
+
+# Renombrar variables
+hogares_total <- hogares_total %>% 
+  rename(cabecera = Clase,
+         Ncuartos = P5000,
+         Ncuartos_duermen = P5010,
+         prop_vivienda = P5090,
+         Npersonas = Nper,
+         Nper_unidad_gasto = Npersug,
+         linea_indigencia = Li,
+         linea_pobreza = Lp,
+         factor_exp = Fex_c,
+         factor_ex_dep = Fex_dpto,
+         credit_vivienda_mes = P5100,
+         arriendo = P5140,
+         arriendo_hipotetico = P5130
+  )
+
+## Limpieza personas -----------------------------------------------------------
+
+# Dejar las mísmas variables que la base test personas
+train_personas <- train_personas %>%
+  dplyr::select(-Estrato1, -P6500, -P6510s1, -P6510s2, -P6545s1, -P6545s2, -P6580s1, -P6580s2, 
+         -P6585s1a1, -P6585s1a2, -P6585s2a1, -P6585s2a2, -P6585s3a1, -P6585s3a2, -P6585s4a1, -P6585s4a2, 
+         -P6590s1, -P6600s1, -P6610s1, -P6620s1, -P6630s1a1, -P6630s2a1, -P6630s3a1, -P6630s4a1, 
+         -P6630s6a1, -P6750, -P6760, -P550, -P7070, -P7140s1, -P7140s2, -P7422s1, -P7472s1, 
+         -P7500s1, -P7500s1a1, -P7500s2a1, -P7500s3a1, -P7510s1a1, -P7510s2a1, -P7510s3a1, -P7510s5a1, 
+         -P7510s6a1, -P7510s7a1, -Impa, -Isa, -Ie, -Imdi, -Iof1, -Iof2, -Iof3h, -Iof3i, 
+         -Iof6, -Cclasnr2, -Cclasnr3, -Cclasnr4, -Cclasnr5, -Cclasnr6, -Cclasnr7, -Cclasnr8, 
+         -Cclasnr11, -Impaes, -Isaes, -Iees, -Imdies, -Iof1es, -Iof2es, -Iof3hes, -Iof3ies, 
+         -Iof6es, -Ingtotob, -Ingtotes, -Ingtot)
+
+#Crear una variable para indicar si la obs pertenece a test o train
+train_personas <- train_personas %>% mutate(test=0)
+test_personas <- test_personas %>% mutate(test=1)
+
+#Unir test y train
+
+personas_total <- rbind(test_personas, train_personas)
+
+# Observar la cantidad de missing values de cada variable
+missing_values<-colSums(is.na(personas_total))
+missing_tab<-data.frame(
+  Miss_val=missing_values
+)
+print(missing_tab)
+
+#Las variables Pet, Ina, Ocu y Des solo tienen los 1, de lo contrario es cero
+#Para verificar: 
+
+suma_Ina <- sum(personas_total$Ina, na.rm = TRUE)
+suma_Oc <- sum(personas_total$Oc, na.rm = TRUE)
+suma_Des <- sum(personas_total$Des, na.rm = TRUE)
+suma_Pet <- sum(personas_total$Pet, na.rm = TRUE)
+print((suma_Ina + suma_Oc + suma_Des) == suma_Pet)
+
+#Aqui logramos identificar que la suma de ocupados, desocupados e inactivos es igual a la Pet
+#Reemplazamos los valores faltantes por cero en cada variable
+
+personas_total <- personas_total %>%
+  mutate(
+    Ina = replace_na(Ina, 0),
+    Pet = replace_na(Pet, 0),
+    Oc = replace_na(Oc, 0),
+    Des = replace_na(Des, 0)
+  )
+
+#Reemplazar el grado escolar finalizado de acuerdo con el nivel de educación alcanzado
+# Calcular el promedio de P6210s1 por cada categoría de P6210 y redondearlo a enteros
+promedios <- personas_total %>%
+  group_by(P6210) %>%
+  summarize(promedio_P6210s1 = round(mean(P6210s1, na.rm = TRUE)))
+
+# Reemplazar los valores faltantes en P6210s1 con los promedios redondeados
+personas_total <- personas_total %>%
+  left_join(promedios, by = "P6210") %>%
+  mutate(P6210s1 = ifelse(is.na(P6210s1), promedio_P6210s1, P6210s1)) %>%
+  select(-promedio_P6210s1)
+
+#Reemplazar el tiempo que lleva trabajando por cero si la persona no es ocupada
+
+personas_total$P6426 <- ifelse(personas_total$Oc==0 & is.na(personas_total$P6426), 
+                             0, personas_total$P6426)
+
+#Si la persona no es ocupada entonces no hace parte de ninguna de las categorias de trabajos en personas_total$P6430
+#A las personas no ocupadas les ponemos 0 en esta variable
+personas_total$P6430 <- ifelse(personas_total$Oc==0 & is.na(personas_total$P6430), 
+                               0, personas_total$P6430)
+
+#Si la persona no trabaja entonces no recibe ingresos por horas extra
+
+personas_total$P6510 <- ifelse((personas_total$Oc == 0 | 
+                                  !personas_total$P6430 %in% c(1, 2, 3, 8)) & 
+                                 is.na(personas_total$P6510), 
+                               2, personas_total$P6510) #2 es no en esta variable
+
+
+#La confició & !personas_total$P6430 %in% c(1, 2, 3, 8) se debe a que las preguntas 
+#sobre componentes salariales solo se hacen a personas que son empleados remunerados
+
+#Se sigue la misma lógica para las siguientes variables sobre temas relacionados con el trabajo
+
+personas_total <- personas_total %>%
+  mutate(
+    P6545 = ifelse((Oc == 0 | !P6430 %in% c(1, 2, 3, 8)) & is.na(P6545), 2, P6545), #Componente salarial - Primas total
+    P6580 = ifelse((Oc == 0 | !P6430 %in% c(1, 2, 3, 8)) & is.na(P6580), 2, P6580), #Componente salarial - Bonificaciones
+    P6585s1 = ifelse((Oc == 0 | !P6430 %in% c(1, 2, 3, 8)) & is.na(P6585s1), 2, P6585s1), #Componente salarial - Subsidios/auxilios
+    P6585s2 = ifelse((Oc == 0 | !P6430 %in% c(1, 2, 3, 8)) & is.na(P6585s2), 2,  P6585s2), #Componente salarial - Subsidios/auxilios
+    P6585s3 = ifelse((Oc == 0 | !P6430 %in% c(1, 2, 3, 8)) & is.na(P6585s3), 2, P6585s3), #Componente salarial - Subsidios/auxilios
+    P6585s4 = ifelse((Oc == 0 | !P6430 %in% c(1, 2, 3, 8)) & is.na(P6585s4), 2, P6585s4), #Componente salarial - Subsidios/auxilios
+    P6590 = ifelse((Oc == 0 | !P6430 %in% c(1, 2, 3, 8)) & is.na(P6590), 2, P6590), #Componente salarial - Alimentos
+    P6600 = ifelse((Oc == 0 | !P6430 %in% c(1, 2, 3, 8)) & is.na(P6600), 2, P6600), #Componente salarial - Vivienda
+    P6620 = ifelse((Oc == 0 | !P6430 %in% c(1, 2, 3, 8)) & is.na(P6620), 2, P6620), #Componente salarial - Pago en especie
+    P6610 = ifelse((Oc == 0 | !P6430 %in% c(1, 2, 3, 8)) & is.na(P6610), 2, P6610), #Transporte al trabajo
+    P6630s1 = ifelse((Oc == 0 | !P6430 %in% c(1, 2, 3, 8)) & is.na(P6630s1), 2, P6630s1), #Componente salarial - prima servicios
+    P6630s2 = ifelse((Oc == 0 | !personas_total$P6430 %in% c(1, 2, 3, 8)) & is.na(P6630s2), 2, P6630s2), #Componente salarial - prima navidad
+    P6630s3 = ifelse((Oc == 0 | !personas_total$P6430 %in% c(1, 2, 3, 8)) & is.na(P6630s3), 2, P6630s3), #Componente salarial - prima vacaciones
+    P6630s4 = ifelse((Oc == 0 | !personas_total$P6430 %in% c(1, 2, 3, 8)) & is.na(P6630s4), 2, P6630s4), #Componente salarial - viáticos
+    P6630s6 = ifelse((Oc == 0 | !personas_total$P6430 %in% c(1, 2, 3, 8)) & is.na(P6630s6), 2, P6630s6), #Componente salarial - Bonificaciones anuales
+    P6800 = ifelse(Oc == 0 & is.na(P6800), 0, P6800), #Horas de trabajo
+    P6870 = ifelse(Oc == 0 & is.na(P6870), 0, P6870), #Personas en firma donde trabaja
+    P6920 = ifelse(Oc == 0 & is.na(P6920), 2, P6920), #Cotiza a fondo de pensiones (solo se pregunta a ocupados)
+    P7040 = ifelse(Oc == 0 & is.na(P7040), 2, P7040), #Segundo trabajo
+    Oficio = ifelse(Oc == 0 & is.na(Oficio), 0, Oficio) #Ofcio 
+  )
+
+#Si no tiene segundo trabajo
+
+personas_total <- personas_total %>%
+  mutate(
+    P7045 = ifelse(P7040 == 2 & is.na(P7045), 0, P7045), #Horas segundo trabajo
+  )
+
+
+#Hay variables que deben ser cero para las personas que no pertenecen a la PET: 
+#Son preguntas sobre ciertos tipos de ingresos como arriendos, prestamos, etc.
+#Estas preguntas no se hacen a menores porque se asume que los padres o responsables manejan sus ingresos
+
+personas_total$P7495 <- ifelse(personas_total$Pet==0 & is.na(personas_total$P7495), 
+                               2, personas_total$P7495) 
+personas_total$P7505 <- ifelse(personas_total$Pet==0 & is.na(personas_total$P7505), 
+                               2, personas_total$P7505)
+
+#La variable de afiliación a seguridad social solo se pregunta para personas en edad  de trabajar
+# Filtrar los datos donde P6090 es faltante
+datos_filtrados <- personas_total[is.na(personas_total$P6090), ]
+table(datos_filtrados$P6040)
+personas_total$P6090 <- ifelse(personas_total$Pet==0 & is.na(personas_total$P6090), 
+                               0, personas_total$P6090)
+
+datos_filtrados <- personas_total[is.na(personas_total$P6100), ]
+table(datos_filtrados$P6040)
+personas_total$P6100 <- ifelse(personas_total$Pet==0 & is.na(personas_total$P6100), 
+                               0, personas_total$P6100)
+personas_total$P6100 <- ifelse(personas_total$P6090==2 & is.na(personas_total$P6100), 
+                               0, personas_total$P6100) #Si no estána afiliados no se les hace esta pregunta
+
+#Revisar la edad de las personas con educación faltante
+datos_filtrados <- personas_total[is.na(personas_total$P6210), ]
+table(datos_filtrados$P6040) #Son niños menores a dos años, por tanto no tienen ningun grado escolar alcanzado
+
+personas_total$P6210 <- ifelse(is.na(personas_total$P6210), 1, personas_total$P6210) 
+personas_total$P6210s1 <- ifelse(is.na(personas_total$P6210s1), 0, personas_total$P6210s1) 
+
+
+#La pregunta de la actividad que realizan la mayor parte del tiempo solo se pregunta para al PET
+#Creamos una categoría extra para niños (categ 7, las que ya existen va de 1 a 6)
+
+personas_total$P6240 <- ifelse(personas_total$Pet==0 & is.na(personas_total$P6240), 
+                               7, personas_total$P6240)
+
+# Identificar variables con más de 75% de missings:
+
+threshold <- 0.6*nrow(personas_total)
+
+missing_cols <- colSums(is.na(personas_total)) > threshold
+
+print(names(personas_total)[missing_cols]) #Las variables con más de 60% de missings son P5100 y P5140
+
+
+# ====================== Dejar variables a nivel de hogar ======================
+
+# Juan Pablo -------------------------------------------------------------------
+
+#Renombrar variables // 
+
+personas_total <- personas_total %>% 
+  rename(dicotom_ingxhorasextra = P6510,
+         dicotom_primas = P6545,
+         dicotom_bonificaciones = P6580,
+         dicotom_subsalimentacion = P6585s1,
+         dicotom_substransporte = P6585s2,
+         dicotom_subsfamiliar = P6585s3,
+         dicotom_subseduc = P6585s4,
+         dicotom_alimentosextra = P6590,
+         dicotom_viviendapago = P6600,
+         dicotom_transporteempresa = P6610,
+         dicotom_ingresosextraespecie = P6620,
+  )
+
+#Ver qué valor toman estas variables dicotómicas
+
+summary(personas_total[, c("dicotom_ingxhorasextra", "dicotom_primas", "dicotom_bonificaciones", 
+                           "dicotom_subsalimentacion", "dicotom_substransporte", "dicotom_subsfamiliar", "dicotom_subseduc", 
+                           "dicotom_alimentosextra", "dicotom_viviendapago", "dicotom_transporteempresa", 
+                           "dicotom_ingresosextraespecie")])
+
+
+#Convertir en valores 1 y 0 para servir de contador estandarizado.
+
+personas_total <- personas_total %>% 
+  mutate(
+    dicotom_ingxhorasextra = ifelse(dicotom_ingxhorasextra == 1, 1, 0),
+    dicotom_primas = ifelse(dicotom_primas == 1, 1, 0),
+    dicotom_bonificaciones = ifelse(dicotom_bonificaciones == 1, 1, 0),
+    dicotom_subsalimentacion = ifelse(dicotom_subsalimentacion == 1, 1, 0),
+    dicotom_substransporte = ifelse(dicotom_substransporte == 1, 1, 0),
+    dicotom_subsfamiliar = ifelse(dicotom_subsfamiliar == 1, 1, 0),
+    dicotom_subseduc = ifelse(dicotom_subseduc == 1, 1, 0),
+    dicotom_alimentosextra = ifelse(dicotom_alimentosextra == 1, 1, 0),
+    dicotom_viviendapago = ifelse(dicotom_viviendapago == 1, 1, 0),
+    dicotom_transporteempresa = ifelse(dicotom_transporteempresa == 1, 1, 0),
+    dicotom_ingresosextraespecie = ifelse(dicotom_ingresosextraespecie == 1, 1, 0)
+  )
+
+#------------------------------ANGEL------------------------------------------#
+
+
+##------ Última limpieza ------##
+
+### Variables no interpretables en agrupación
+personas_total <- personas_total %>% select(-P6050, # Parentesco con el jefe
+                    -P6210s1, # Se puede reemplazar con P6210 en la agrupación
+                    -P6240, # Actividad semana pasada, toca transformar para conteo y es poco relevante
+                    -Oficio, # 99 categorias
+                    -P6430, # Posición en la empresa, muchas categporias
+                    )
+
+### Renombrar
+personas_total <- personas_total %>% 
+  rename(mujer = P6020,
+         edad = P6040,
+         segur_social = P6090, # Si es cotizante o no
+         tipos_segur_social = P6100,
+         max_nivel_educ = P6210,
+         tiempo_empresa = P6426
+  )
+
+### Reconstruir
+
+# Creamos la variable mujer
+personas_total <- personas_total %>% 
+  mutate(mujer = ifelse(mujer == 2, yes = 1 , no = 0))
+
+# Usamos edad
+personas_total <- personas_total %>%
+  mutate(
+    menor_15 = ifelse(edad < 15, 1, 0),  # 1 si es menor de 15, 0 en caso contrario
+    mayor_60 = ifelse(edad > 60, 1, 0)   # 1 si es mayor de 60, 0 en caso contrario
+  )
+
+# seguridad social
+personas_total <- personas_total %>% 
+  mutate(segur_social = ifelse(segur_social == 1, yes = 1 , no = 0)) # 1 si cotiza
+
+# Tipo de seguridad social
+personas_total <- personas_total %>% 
+  mutate(segur_subsidiado = ifelse(tipos_segur_social == 3, yes = 1, no = 0)) # 1 si es subsidiado
+
+# Maximo nivel de educación
+personas_total <- personas_total %>% 
+  mutate(educ_sup = ifelse(max_nivel_educ == 6, yes = 1, no = 0)) # 1 si es universitario
+
+### Agrupar
+
+
+
+#Juan Esteban ------------------------------------------------------------------
+
+
+#1) Lista de variables ---------------------------------------------------------
+
+#P6630s1 - en los últimos 12 meses recibió prima de servicios (prima_servicios) / (C) 1
+#P6630s2 - en los últimso 12 meses recibió prima de navidad (prima_navidad) / (C) 1     
+#P6630s3 - en los últimos 12 meses recibió prima de vacaciones (prima_vacaciones) / (C) 1     
+#P6630s4 - en los últimos 12 meses recibió viáticos permanentes (viaticos) / (C) 1      
+#P6630s6 - en los últimos 12 meses recibió bonificaciones anuales (bonificaciones_anuales) / (C)  1    
+#P6800 - horas trabajadas normalmente en el empleo principal (horas_empleo_principal) / (N) 2      
+#P6870 - número de personas en la empresa donde trabaja (numero_personas_empresa) / (C) 3        
+#P6920 -  cotiza actualmente a un fondo de pensiones (cotiza_pension) / (C) 1     
+#P7040 - tiene una ocupación secundaria como un trabajo o negocio (empleo_secundaria) / (C) 1        
+#P7045 - trabajo en la ocupación secundaria (horas_empleo_secundario) / 2         
+#P7090 -  quiere trabajar más horas ademas de las que ya trabaja (quiere_trabajar_mas) / (C) 1
+
+
+
+#2) Imputar missings variables P7090 (quiere trabajar más horas) ---------------
+#Si la personas no quiere traabajar por transitividad tampoco quiere trabajar mas ahora.
+#ademas si la peronas está desocupada tampaco puede trabajar ahoras adicionales a las
+#que trabajan porque no trabajan 
+
+personas_total  <- personas_total %>% 
+                    mutate(P7090 = ifelse(is.na(P7090), 2, P7090))
+
+
+#3) Crear variables pensionado -------------------------------------------------
+#Creamos una variable dummy para las personas ya pensionadas y dejamos la variale 
+#P6920 como cotiza pensión
+
+personas_total <- personas_total %>% 
+                  mutate(
+                    pensionado = ifelse(P6920 == 1 | P6920 == 2, 0, P6920), #Crear variables pensionado igual a 0 para cotizantes y no contizantes que no están pensionados
+                    pensionado = ifelse(P6920 == 3, 1, pensionado), #Ponerle 1 a las personas pensionadas
+                    P6920 = ifelse((P6920 == 2 | P6920 == 3 )  & !is.na(P6920), 2 , P6920) #Volver la variables P6920 una dummy de cotiza pensión
+                  )
+
+
+#4) Crear variables por tamaño de empresa --------------------------------------
+
+personas_total <- personas_total %>%  
+                  mutate(
+                    trabaja_solo = ifelse(P6870 == 1, 1, 0), #Trabaja solo 
+                    microempresa = ifelse(P6870 == 2 | P6870 == 3 | P6870 == 4, 1, 0), #De 2 a 10 trabajadores en la empresa
+                    pequeña_empresa = ifelse(P6870 == 5 | P6870 == 6, 1, 0),  # De 11 a 30 trabajadores en la empresa
+                    mediana_empresa = ifelse(P6870 == 7 | P6870 == 8, 1, 0), # De 31 a 100 trabajadores
+                    gran_empresa = ifelse(P6870 == 9, 1, 0) # 101 o más trabajadores
+                  )
+
+
+#5) Recodificar variables binarias  --------------------------------------------
+#La codificación del DANE es (si == 1) y (no == 2) y la quiero dejar en 
+# (si == 1) y (no == 0) para que se pueda interpretar como una proporción
+
+personas_total <- personas_total %>% 
+                  mutate(
+                    P6630s1 = ifelse(P6630s1 == 1, 1, 0),
+                    P6630s2 = ifelse(P6630s2 == 1, 1, 0), 
+                    P6630s3 = ifelse(P6630s3 == 1, 1, 0), 
+                    P6630s4 = ifelse(P6630s4 == 1, 1, 0), 
+                    P6630s6 = ifelse(P6630s6 == 1, 1, 0), 
+                    P6920 = ifelse(P6920 == 2 & !is.na(P6920), 0 , P6920),
+                    P7040 = ifelse(P7040 == 1, 1, 0), 
+                    P7090 = ifelse(P7090 == 1, 1, 0)
+                    )
+
+
+#6) Dejar variables a nivel de hogar -------------------------------------------
+
+
+#(i) para las varibles categoricas que tiene (1 == si) y (0 == no) hacemos un promedio 
+# de estas respuestas que se interpretan como la proporción de personas en el hofar que reciben 
+#primar o a lo que la variable haga referencias
+
+#si el promedio del hogar es:  
+#                            1 todos reciben 
+#                            1>promedio>0.5 más de la mitad de las personas lo reciben 
+#                            0.5 la mitad de las personas lo reciben 
+#                            0.5>promedio>0 menos de la mitad de las personas lo reciben 
+#                            0 nadie los recibe 
+
+
+personas_total <- personas_total %>% 
+                    rename(
+                      prima_servicios = P6630s1,
+                      prima_navidad = P6630s2 , 
+                      prima_vacaciones = P6630s3, 
+                      viaticos = P6630s4,
+                      bonificaciones_anuales = P6630s6, 
+                      horas_empleo_principal = P6800, 
+                      numero_personas_empresa = P6870, 
+                      cotiza_pension = P6920, 
+                      empleo_secundario = P7040, 
+                      horas_empleo_secundario = P7045,
+                      quiere_trabajar_mas = P7090
+                      ) %>% 
+                      group_by(id) %>% 
+                      summarise(
+                        prima_servicios = mean(prima_servicios), #Proporción de personas que reciben la prima en el hogar 
+                        prima_navidad = mean(prima_navidad), #Proporción de personas que reciben la prima en el hogar 
+                        prima_vacaciones = mean(prima_vacaciones), #Proporción de personas que reciben la prima en el hogar 
+                        bonificaciones_anuales = mean(bonificaciones_anuales), #Proporción de personas que reciben la bonificación en el hogar 
+                        horas_empleo_principal = mean(horas_empleo_principal), #Promedio de horas que trabajan los miembros del hogar
+                        cotiza_pension = mean(cotiza_pension), #Proporción de personas que reciben cotizan pensión en el hogar 
+                        empleo_secundario = mean(empleo_secundario), #Proporción de personas con un empleo secundario en el hogar
+                        horas_empleo_secundario = mean(horas_empleo_secundario), #Promedio de horas que trabajan los miembros del hogar
+                        quiere_trabajar_mas = mean(quiere_trabajar_mas), #Proporción de personas que quieren trabajar más en el hogar 
+                        pensionado = mean(pensionado), #Proporción de personas pensionadas en el hogar 
+                        trabaja_solo = mean(trabaja_solo), #Proporción de personas que trabajan solas en el hogar
+                        microempresa = mean(microempresa), #Proporción de personas que trabajan en una microempresa en el hogar (2-10 trabajadores)
+                        pequeña_empresa = mean(pequeña_empresa), #Proporción de personas que trabajan en una pequeña empresa en el hogar (11-30 trabajadores)
+                        mediana_empresa = mean(mediana_empresa), #Proporción de personas que trabajan en una mediana empresa en el hogar (31-100 trabajadores)
+                        gran_empresa = mean(gran_empresa), #Proporción de personas que trabajan en una gran empresa en el hogar (101+ trabajadores)
+                        dicotom_ingxhorasextra = mean(dicotom_ingxhorasextra),
+                        dicotom_primas = mean(dicotom_primas),
+                        dicotom_bonificaciones = mean(dicotom_bonificaciones),
+                        dicotom_subsalimentacion = mean(dicotom_subsalimentacion),
+                        dicotom_substransporte = mean(dicotom_substransporte),
+                        dicotom_subsfamiliar = mean(dicotom_subsfamiliar),
+                        dicotom_subseduc = mean(dicotom_subseduc),
+                        dicotom_alimentosextra = mean(dicotom_alimentosextra),
+                        dicotom_viviendapago = mean(dicotom_viviendapago),
+                        dicotom_transporteempresa = mean(dicotom_transporteempresa),
+                        dicotom_ingresosextraespecie = mean(dicotom_ingresosextraespecie), 
+                        mujer = sum(mujer, na.rm = TRUE),
+                        menor_15 = sum(menor_15, na.rm = TRUE),
+                        mayor_60 = sum(mayor_60, na.rm = TRUE),
+                        edad = mean(edad, na.rm = TRUE),
+                        segur_social = sum(segur_social, na.rm = TRUE), # Necesita imputación
+                        segur_subsidiado = sum(segur_subsidiado, na.rm = TRUE), # Necesita imputación
+                        educ_sup = sum(educ_sup, na.rm = TRUE), # Necesita imputación
+                        tiempo_empresa = mean(tiempo_empresa, na.rm = TRUE)
+                      )
+
+
+db_final <- left_join(hogares_total, personas_total, by = "id")
+export(db_final,'stores/db_final.rds' )
