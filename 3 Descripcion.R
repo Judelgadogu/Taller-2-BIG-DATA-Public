@@ -157,13 +157,33 @@ ggplot(pobreza_por_dpto, aes(x = Nombre_Depto, y = Prop, fill = factor(Pobre))) 
 # Distribución del IPUG
 train_hogares_2 %>%
   filter(Pobre == "No Pobres") %>%
-  ggplot(aes(Ingtotug)) +
+  ggplot(aes(Ingpcug)) +
   geom_density(fill="blue")
 
 train_hogares_2 %>%
   filter(Pobre == "Pobres") %>%
   ggplot(aes(Ingtotug)) +
   geom_density(fill="blue")
+
+train_hogares_2 %>%
+  filter(Pobre == "No Pobres") %>%
+  ggplot(aes(Ingpcug)) +
+  geom_density(fill="blue") +
+  scale_x_log10()
+
+
+train_hogares_2 %>%
+  filter(Pobre %in% c("Pobres", "No Pobres")) %>%
+  ggplot(aes(x = Ingpcug, fill = Pobre)) +
+  geom_density(alpha = 0.6) +
+  scale_x_log10() + 
+  labs(title = "Distribución de ingresos por condición",
+       x = "Ingreso per cápita unidad de gasto(log)",
+       y = "Densidad",
+       fill = "Categoría pobreza") +
+  theme_minimal()
+
+
 
 
 
