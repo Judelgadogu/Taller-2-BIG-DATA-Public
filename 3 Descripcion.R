@@ -13,12 +13,12 @@ user <- Sys.getenv("USERNAME")
 
 if (user == "judel") {
   path <- "C:/Users/judel/OneDrive/Documentos/ANDES/Semestre 2/Big data/segunda parte/Taller 2/input"
-} else if (user == "---") {
+} else if(user == "e125379") {
+  path <- "C:\\Users\\e125379\\OneDrive - Mastercard\\8. Uniandes\\6. Big Data\\3. Taller 2\\Data\\"
+} else if(user == "Mario") {
+  path <- "C:/Users/Mario/Documents/poverty"
+}else if(user == "-evaluador-") {
   path <- "-----"
-} else if (user == "-evaluador-") {
-  path <- "-----"
-} else {
-  stop("Usuario no reconocido. Ajusta el 'path' manualmente.")
 }
 
 setwd(path)
@@ -58,7 +58,7 @@ ggplot(train_hogares_2, aes(x = factor(Pobre, labels = c("No Pobres", "Pobres"))
   geom_bar(position = "fill") +  # Proporciones en vez de conteo absoluto
   scale_fill_manual(values = c("gray", "red")) +  # Mejores colores
   labs(
-    title = "Distribución de la Pobreza por Sexo del Jefe de hogar",
+    title = "Distribución de la pobreza por sexo del jefe de hogar",
     x = "Condición de pobreza",
     y = "Proporción",
     fill = "Jefe de hogar"
@@ -69,14 +69,17 @@ ggplot(train_hogares_2, aes(x = factor(Pobre, labels = c("No Pobres", "Pobres"))
     legend.position = "top"
   )
 
+
+
+
 # Gráfico de pobreza por número de hijos
 ggplot(train_hogares, aes(x = Hijos, fill = factor(Pobre))) +
   geom_bar(position = "fill") +  # Muestra proporción en vez de conteo absoluto
   scale_fill_manual(values = c("gray", "red")) +  # Colores más diferenciables
   scale_x_continuous(breaks = seq(0, 10, by = 1), limits = c(0, 10)) +  # Limita y ordena ejes
   labs(
-    title = "Distribución de la Pobreza por Número de Hijos",
-    x = "Número de Hijos",
+    title = "Distribución de la pobreza por número de hijos",
+    x = "Número de hijos",
     y = "Proporción",
     fill = "Pobre"
   ) +
@@ -85,6 +88,27 @@ ggplot(train_hogares, aes(x = Hijos, fill = factor(Pobre))) +
     plot.title = element_text(hjust = 0.5, face = "bold", size = 14),  # Centrar y resaltar título
     legend.position = "top"  # Mover la leyenda arriba
   )
+
+
+# Gráfico de pobreza por NPER
+ggplot(train_hogares, aes(x = Nper, fill = factor(Pobre))) +
+  geom_bar(position = "fill") +  # Muestra proporción en vez de conteo absoluto
+  scale_fill_manual(values = c("gray", "red")) +  # Colores más diferenciables
+  scale_x_continuous(breaks = seq(0, 10, by = 1), limits = c(0, 10)) +  # Limita y ordena ejes
+  labs(
+    title = "Distribución de la pobreza por número de personas",
+    x = "Número de personas",
+    y = "Proporción",
+    fill = "Pobre"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),  # Centrar y resaltar título
+    legend.position = "top"  # Mover la leyenda arriba
+  )
+
+
+
 
 # Análisis por departamento
 departamentos_df <- data.frame(
@@ -127,3 +151,19 @@ ggplot(pobreza_por_dpto, aes(x = Nombre_Depto, y = Prop, fill = factor(Pobre))) 
        fill = "Pobre") +
   theme_minimal() +
   coord_flip()
+
+
+
+# Distribución del IPUG
+train_hogares_2 %>%
+  filter(Pobre == "No Pobres") %>%
+  ggplot(aes(Ingtotug)) +
+  geom_density(fill="blue")
+
+train_hogares_2 %>%
+  filter(Pobre == "Pobres") %>%
+  ggplot(aes(Ingtotug)) +
+  geom_density(fill="blue")
+
+
+
