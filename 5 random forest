@@ -1,0 +1,169 @@
+# --------------------------
+# 0. LIMPIEZA Y CONFIGURACIÓN DEL ENTORNO
+# --------------------------
+
+rm(list = ls())  # Limpiar el entorno
+gc()  # Limpiar la memoria
+closeAllConnections()  # Cerrar conexiones abiertas
+
+# --------------------------
+# 1. CONFIGURACIÓN DEL DIRECTORIO DE TRABAJO
+# --------------------------
+
+user <- Sys.getenv("USERNAME")
+
+if (user == "judel") {
+  path <- "C:/Users/judel/OneDrive/Documentos/ANDES/Semestre 2/Big data/segunda parte/Taller 2/input"
+} else if (user == "e125379") {
+  path <- "C:\\Users\\e125379\\OneDrive - Mastercard\\8. Uniandes\\6. Big Data\\3. Taller 2\\Data\\"
+} else if (user == "-evaluador-") {
+  path <- "-----"
+} else {
+  stop("Usuario no reconocido. Ajusta el 'path' manualmente.")
+}
+
+setwd(path)  # Establecer el directorio de trabajo
+
+# --------------------------
+# 2. CARGAR LAS LIBRERÍAS NECESARIAS
+# --------------------------
+
+library(pacman)
+
+p_load(rio, # import/export data
+       tidyverse, # tidy-data
+       glmnet, # To implement regularization algorithms. 
+       caret, # Creating predictive models
+       scatterplot3d, # For 3D visualization
+       plotly,
+       car,
+       doParallel, 
+       skimr, 
+       Mlmetrics)  # Visualización interactiva
+
+# --------------------------
+# 3. CARGA DE DATOS
+# --------------------------
+
+train_hogares <- readRDS("stores/train_hogares_full.Rds")  # Cargar datos de entrenamiento
+test_hogares <- readRDS("stores/test_hogares_full.Rds")  # Cargar datos de prueba
+
+train_hogares <- as.data.frame(train_hogares)  # Convertir a data.frame
+test_hogares <- as.data.frame(test_hogares)  # Convertir a data.frame
+
+
+cl <- makeCluster(detectCores() - 1)  # Usa todos los núcleos menos 1
+registerDoParallel(cl)
+
+
+# --------------------------
+# 4. ENTRENAMIENTO DEL MODELO
+# --------------------------
+
+set.seed(123)  # Fijar semilla para reproducibilidad
+
+#train_hogares$Pobre <- factor(train_hogares$Pobre, levels = c(0, 1))
+
+#set.seed(1022)
+#inTrain <- createDataPartition(
+ # y = train_hogares$Pobre,   ## Variable dependiente (target)
+  #p = .7,            ## 70% para entrenamiento
+  #list = FALSE
+#)
+
+#train_muestra <- train_hogares[inTrain,]    ## Crea el conjunto de entrenamiento
+#test_muestra  <- test_hogares[-inTrain,]    ## Crea el conjunto de prueba
+
+train_muestra <- train_hogares
+test_muestra <- test_hogares
+
+# --------------------------
+# 4. Modelo de Arboles
+# --------------------------
+
+
+#arbol_1 <- train(Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
+           #      JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena + JH_Mediana_Grande + Hijos,
+            #   data = train_muestra,
+             #  method = "rpart",
+              # trControl = fitControl)
+
+#print(arbol_1)
+
+#p_load(rattle)
+#fancyRpartPlot(arbol_1$finalModel)
+
+
+# --------------------------
+# 4. Random Forest
+# --------------------------
+
+set.seed(123)
+
+train_muestra$Pobre <- factor(train_muestra$Pobre, 
+                              levels = c(0, 1),
+                              labels = c("No_Pobre", "Pobre"))
+
+fiveStats <- function(...) {
+  c(
+    caret::twoClassSummary(...),
+    caret::defaultSummary(...)
+  )
+}
+
+
+fitControl <- trainControl(
+  method = "cv",  # Validación cruzada
+  number = 5,
+  summaryFunction = fiveStats,
+  classProbs = TRUE,
+  verbose = FALSE,
+  savePredictions = T,
+  sampling = "smote"
+)
+
+tunegrid_rf <- expand.grid(
+  mtry = c(2, 4, 6, 8, 10, 12),
+  splitrule = c("gini", "extratrees"),  # agrega otra regla de división
+  min.node.size = c(1, 5, 10, 20)
+)
+  
+
+#Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
+  #JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena + JH_Mediana_Grande + Hijos ,  
+  
+
+rforest <- train(Pobre ~ JH_Mujer +JH_Edad + JH_Edad2 + JH_RSS_S +JH_RSS_Subsidiado +
+                 JH_NEduc + JH_CotizaPension + JH_Pensionado + JH_Oc + JH_Des + JH_Ina + JH_NoSeguro +JH_BasicaSecundaria + JH_Media + Hijos + Educ_prom + 
+                 JH_Independiente + JH_Microempresa +JH_Pequena  + JH_Mediana_Grande + Adultos + Trabajadores + Subsidios + Pensionado + JH_Trabaja +JH_HorasExt +
+                 Ingresos_AlquilerPensiones + OtrosIngresos + AyudasEco + TGP + P_o + JH_Vulnerable + JH_Alim + JH_Horas_Trabajo + JH_Personas_Trabajo + JH_Vivienda +
+                 JH_Segundo_Trabajo + P5000 + P5010 + P5090 + tasa_desempleo + P5130 + Nper + Npersug + Lp + Li,
+               data=train_muestra, 
+               trControl = fitControl,
+               tuneGrid = tunegrid_rf,
+               method ="ranger",
+               ntree=5,
+               na.action = na.pass)
+
+print(rforest)
+
+plot(rforest)
+
+pred_train_2_muestra<-predict(rforest, newdata = train_muestra)
+pred_test_2_muestra<-predict(rforest, newdata = test_hogares)
+
+
+# Crear un dataframe de predicciones para el conjunto de prueba
+  predictSample <- data.frame(
+    id = test_hogares$id,  # Asegúrate de que 'id' existe en 'test_muestra'
+    pobre = as.numeric(pred_test_2_muestra) - 1  # Convertir de factor a numérico (0 = No_Pobre, 1 = Pobre)
+  )
+  
+  # Definir la ruta de salida para el CSV
+  ruta_salida <- "predicciones_test_v3.csv"  # Cambia esta ruta según corresponda
+  
+  # Guardar el dataframe como un archivo CSV
+  write.csv(predictSample, ruta_salida, row.names = FALSE)
+  
+  # Confirmar que el archivo se ha guardado
+  file.exists(ruta_salida)
