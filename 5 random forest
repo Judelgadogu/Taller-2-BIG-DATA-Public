@@ -38,8 +38,7 @@ p_load(rio, # import/export data
        plotly,
        car,
        doParallel, 
-       skimr, 
-       Mlmetrics)  # Visualización interactiva
+       skimr)  # Visualización interactiva
 
 # --------------------------
 # 3. CARGA DE DATOS
@@ -93,6 +92,20 @@ test_muestra <- test_hogares
 #p_load(rattle)
 #fancyRpartPlot(arbol_1$finalModel)
 
+# --------------------------
+# 4. Medir correlación entre variable
+# --------------------------
+numeric_vars <- train_muestra[sapply(train_muestra, is.numeric)]
+cor_matrix <- cor(numeric_vars, use = "complete.obs")
+library(corrplot)
+
+corrplot(cor_matrix,
+         method = "color", 
+         type = "upper", 
+         tl.cex = 0.7, 
+         tl.col = "black", 
+         diag = FALSE)
+
 
 # --------------------------
 # 4. Random Forest
@@ -124,8 +137,14 @@ fitControl <- trainControl(
 
 tunegrid_rf <- expand.grid(
   mtry = c(2, 4, 6, 8, 10, 12),
-  splitrule = c("gini", "extratrees"),  # agrega otra regla de división
+  splitrule = c("gini"),  # agrega otra regla de división
   min.node.size = c(1, 5, 10, 20)
+)
+
+tunegrid_rf_fast <- expand.grid(
+  mtry = c(4, 8),
+  splitrule = c("gini"),
+  min.node.size = c(1, 10)
 )
   
 
@@ -133,17 +152,31 @@ tunegrid_rf <- expand.grid(
   #JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena + JH_Mediana_Grande + Hijos ,  
   
 
-rforest <- train(Pobre ~ JH_Mujer +JH_Edad + JH_Edad2 + JH_RSS_S +JH_RSS_Subsidiado +
-                 JH_NEduc + JH_CotizaPension + JH_Pensionado + JH_Oc + JH_Des + JH_Ina + JH_NoSeguro +JH_BasicaSecundaria + JH_Media + Hijos + Educ_prom + 
+rforest <- train(Pobre ~ JH_Mujer + JH_Edad + JH_RSS_S +
+                 JH_NEduc + JH_CotizaPension + JH_Oc + JH_NoSeguro + Hijos + Educ_prom + 
                  JH_Independiente + JH_Microempresa +JH_Pequena  + JH_Mediana_Grande + Adultos + Trabajadores + Subsidios + Pensionado + JH_Trabaja +JH_HorasExt +
-                 Ingresos_AlquilerPensiones + OtrosIngresos + AyudasEco + TGP + P_o + JH_Vulnerable + JH_Alim + JH_Horas_Trabajo + JH_Personas_Trabajo + JH_Vivienda +
-                 JH_Segundo_Trabajo + P5000 + P5010 + P5090 + tasa_desempleo + P5130 + Nper + Npersug + Lp + Li,
+                 OtrosIngresos + AyudasEco + TGP + JH_Vulnerable + JH_Alim + JH_Horas_Trabajo + JH_Personas_Trabajo + JH_Vivienda +
+                 JH_Segundo_Trabajo + P5000 + P5010 + P5090 + tasa_desempleo + P5130 + Nper + Lp,
                data=train_muestra, 
                trControl = fitControl,
-               tuneGrid = tunegrid_rf,
+               tuneGrid = tunegrid_rf_fast,
                method ="ranger",
                ntree=5,
-               na.action = na.pass)
+               na.action = na.pass,
+               importance = "impurity")
+
+varImpPlot <- varImp(rforest)
+plot(varImpPlot, top = 20)
+
+rforest <- train(Pobre ~ JH_RSS_S + Hijos + Subsidios + Nper + Educ_prom + P5130 +
+                   TGP + Trabajadores + JH_CotizaPension + Lp + JH_NEduc + tasa_desempleo +
+                   P5000 + JH_Edad + P5090 + P5010 + Adultos + JH_NoSeguro + JH_Personas_Trabajo + AyudasEco,
+                 data=train_muestra, 
+                 trControl = fitControl,
+                 tuneGrid = tunegrid_rf,
+                 method ="ranger",
+                 ntree=500,
+                 na.action = na.pass)
 
 print(rforest)
 
