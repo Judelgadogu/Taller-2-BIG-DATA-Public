@@ -37,7 +37,15 @@ p_load(rio, # import/export data
        scatterplot3d, # For 3D visualization
        plotly,
        car,
-       doParallel)  # Visualización interactiva
+       doParallel,
+       rpart,
+       randomForest,
+       gbm,
+       ranger,
+       stargazer,
+       broom,
+       purrr,
+       knitr)  # Visualización interactiva
 
 # --------------------------
 # 3. CARGA DE DATOS
@@ -77,8 +85,9 @@ fitControl <- trainControl(
 
 # Ajustar el modelo con regresión logística, usando los pesos de las clases
 linear_reg_caret_weighted <- train(
-  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro+ JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
-    JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena+ JH_Mediana_Grande + Hijos
+  Pobre ~ JH_RSS_S + Hijos + Subsidios + Nper + Educ_prom + P5130 +
+    TGP + Trabajadores + JH_CotizaPension + Lp + JH_NEduc + tasa_desempleo +
+    P5000 + JH_Edad + P5090 + JH_NoSeguro + JH_Personas_Trabajo + AyudasEco
     , 
   data = train_hogares,  # Datos de entrenamiento
   method = "glm",  # Método de regresión logística
@@ -89,6 +98,8 @@ linear_reg_caret_weighted <- train(
 
 #weights = class_weights  # Usar pesos en el modelo
 
+coef_logit <- coef(linear_reg_caret_weighted$finalModel)
+coef_logit
 
 # Mostrar resumen del modelo ajustado
 summary(linear_reg_caret_weighted)
@@ -146,8 +157,9 @@ y_hat_reg_test  # Mostrar predicciones
 train_hogares$weights <- ifelse(train_hogares$Pobre == 1, 0.79, 0.21)
 
 ridge <- train(
-  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
-    JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena + JH_Mediana_Grande + Hijos,
+  Pobre ~ JH_RSS_S + Hijos + Subsidios + Nper + Educ_prom + P5130 +
+    TGP + Trabajadores + JH_CotizaPension + Lp + JH_NEduc + tasa_desempleo +
+    P5000 + JH_Edad + P5090 + JH_NoSeguro + JH_Personas_Trabajo + AyudasEco,
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
@@ -177,8 +189,9 @@ coef_ridge
 
 # Ajustar el modelo Ridge final con el mejor lambda
 modelo_ridge <- train(
-  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
-    JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena + JH_Mediana_Grande + Hijos,
+  Pobre ~ JH_RSS_S + Hijos + Subsidios + Nper + Educ_prom + P5130 +
+    TGP + Trabajadores + JH_CotizaPension + Lp + JH_NEduc + tasa_desempleo +
+    P5000 + JH_Edad + P5090 + JH_NoSeguro + JH_Personas_Trabajo + AyudasEco,
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
@@ -233,8 +246,9 @@ y_hat_ridge_test
 #------ Modelo Lasso --------------------
 # Ajustar el modelo Lasso con búsqueda más fina de lambda
 lasso <- train(
-  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
-    JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena + JH_Mediana_Grande + Hijos, 
+  Pobre ~ JH_RSS_S + Hijos + Subsidios + Nper + Educ_prom + P5130 +
+    TGP + Trabajadores + JH_CotizaPension + Lp + JH_NEduc + tasa_desempleo +
+    P5000 + JH_Edad + P5090 + JH_NoSeguro + JH_Personas_Trabajo + AyudasEco, 
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
@@ -263,8 +277,9 @@ print(coef_lasso)
 
 # Ajustar el modelo Lasso final con el mejor lambda
 modelo_lasso <- train(
-  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + JH_BasicaSecundaria + JH_Media +
-    JH_Trabaja + JH_HorasExt + JH_Independiente + JH_Microempresa + JH_Pequena + JH_Mediana_Grande + Hijos, 
+  Pobre ~ JH_RSS_S + Hijos + Subsidios + Nper + Educ_prom + P5130 +
+    TGP + Trabajadores + JH_CotizaPension + Lp + JH_NEduc + tasa_desempleo +
+    P5000 + JH_Edad + P5090 + JH_NoSeguro + JH_Personas_Trabajo + AyudasEco, 
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
@@ -313,10 +328,9 @@ y_hat_lasso_test
 #------ Modelo Elastic Net -----------------
 
 EN <- train(
-  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + 
-    JH_BasicaSecundaria + JH_Media + JH_Trabaja + JH_HorasExt + 
-    JH_Independiente + JH_Microempresa + JH_Pequena + 
-    JH_Mediana_Grande + Hijos, 
+  Pobre ~ JH_RSS_S + Hijos + Subsidios + Nper + Educ_prom + P5130 +
+    TGP + Trabajadores + JH_CotizaPension + Lp + JH_NEduc + tasa_desempleo +
+    P5000 + JH_Edad + P5090 + JH_NoSeguro + JH_Personas_Trabajo + AyudasEco, 
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
@@ -345,10 +359,9 @@ coef_EN
 
 # Ajustar el modelo Elastic Net final con los mejores parámetros encontrados
 modelo_EN <- train(
-  Pobre ~ JH_Mujer + JH_Edad + JH_NoSeguro + JH_RSS_Subsidiado + 
-    JH_BasicaSecundaria + JH_Media + JH_Trabaja + JH_HorasExt + 
-    JH_Independiente + JH_Microempresa + JH_Pequena + 
-    JH_Mediana_Grande + Hijos, 
+  Pobre ~ JH_RSS_S + Hijos + Subsidios + Nper + Educ_prom + P5130 +
+    TGP + Trabajadores + JH_CotizaPension + Lp + JH_NEduc + tasa_desempleo +
+    P5000 + JH_Edad + P5090 + JH_NoSeguro + JH_Personas_Trabajo + AyudasEco, 
   data = train_hogares,
   method = 'glmnet', 
   trControl = fitControl,
