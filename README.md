@@ -13,3 +13,12 @@ document/: Informe final en PDF con análisis, resultados y conclusiones.
 
 ## Resumen Corto
 Este proyecto aplicó técnicas de aprendizaje automático, específicamente el modelo Random Forest, para predecir la pobreza en hogares colombianos utilizando datos de la Gran Encuesta de Hogares (GEIH) de 2018. El modelo Random Forest demostró ser efectivo para identificar hogares no pobres y generalizar a nuevos datos, superando en rendimiento general a modelos lineales como la regresión logística y modelos penalizados. Los factores más importantes identificados para la predicción de la pobreza incluyen la dependencia del sistema de salud subsidiado, la estructura del hogar (tamaño y número de hijos), la recepción de subsidios alimentarios y el nivel educativo promedio del hogar.
+
+Datos obtenidos de: [https://ignaciomsarmiento.github.io/GEIH2018-sample/](https://microdatos.dane.gov.co/index.php/catalog/608/datafile/F1#page=F2&tab=data-dictionary) (GEIH)
+
+## Créditos
+
+*   Mario Andrés Mercado
+*   Julian Delgado
+*   Ana María Rojas
+*   Juan David Rincón
