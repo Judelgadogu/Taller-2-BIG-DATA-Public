@@ -1,0 +1,33 @@
+##Resultados Random Forest Final 
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rlr}
+  \hline
+ & Métrica & Valor \\ 
+  \hline
+Accuracy & Accuracy & 0.8724 \\ 
+  Sensitivity & Sensibilidad (Recall) & 0.6124 \\ 
+  Specificity & Especificidad & 0.9375 \\ 
+  Precision & Precisión & 0.7103 \\ 
+  F1 & F1-Score & 0.6577 \\ 
+   & Kaggle & 0.6703 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+##Confusion Matrix Random Forest
+     
+\begin{table}[ht]
+\centering
+\begin{tabular}{rllr}
+  \hline
+ & Prediction & Reference & Freq \\ 
+  \hline
+1 & No\_Pobre & No\_Pobre & 37103 \\ 
+  2 & Pobre & No\_Pobre & 2475 \\ 
+  3 & No\_Pobre & Pobre & 3841 \\ 
+  4 & Pobre & Pobre & 6069 \\ 
+   \hline
+\end{tabular}
+\end{table}
